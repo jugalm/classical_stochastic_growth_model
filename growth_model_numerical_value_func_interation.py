@@ -4,7 +4,6 @@ Numerical value function iteration
 '''
 
 import numpy as np
-import numpy.matlib as mt
 
 
 def find_nearest(array, value):
@@ -25,47 +24,46 @@ def transition_matrix(vector=np.array([]), p=.5, simulations_n=100):
     return np.array(result)/simulations_n
 
 
+def expected_value(state_vector, prob_vector):
+    return np.inner(np.array(state_vector), np.array(prob_vector))
+
+
 class ValueFunction:
-    def __init__(self, grid_n, lambda1, beta, alpha, theta, lower_bound=.95, upper_bound=1.05):
-        self.k_steady_state = (alpha / ((1/beta) - (1-theta))) ** (1 / (1 - alpha))
-        self.k_vector = np.linspace(lower_bound * self.k_steady_state, upper_bound * self.k_steady_state, grid_n) # create_grid(value=self.k_steady_state, n=grid_n, deviation=k_deviation)
-        # self.z_vector = z_vector
-        # self.transition_matrix = transition_matrix(z_vector)
+    def __init__(self, z_vector, grid_n, lambda1, beta, alpha, theta):
+        self.k_vector = np.linspace(.1, 100, grid_n)
+        self.z_vector = z_vector
+        self.transition_matrix = transition_matrix(z_vector)
         self.lambda1 = lambda1
         self.beta = beta
         self.alpha = alpha
         self.grid_n = grid_n
-        self.k_prime = np.zeros((self.grid_n, 1))  # k_prime(i): next-period capital given current state k(i)
+        self.theta = theta
+        self.k_prime_matrix = np.zeros((self.grid_n, len(self.z_vector)))
+        self.value_matrix = np.zeros((self.grid_n, len(self.z_vector)))
 
-    ''' initialization of endogeneous variables '''
-    def solve(self):
-        v = np.zeros((self.grid_n, 1))  # v(i): value function at k(i)
+    def solve_2(self, e=1, n=0):
 
-        c = mt.repmat(np.power(self.k_vector, self.alpha), self.grid_n, 1).transpose() - \
-            mt.repmat(self.k_vector, self.grid_n, 1)  # cons(i,j): consumption given state k(i) and decision k(j)
-
-        # c[c < 0] = 0.0  # gives -Inf utility
-        util = np.power(c, 1-self.lambda1)/(1-self.lambda1)  # util(i,j): current utility at state k(i) and decision k(j)
-        return self.iterate(v=v, k_prime=self.k_prime, c=c, util=util)
-
-    def iterate(self, e=1, it=0, v=None, k_prime=None, c=None, util=None):
         if e < .01:
-            return self.k_prime
+            return n, self.value_matrix, self.k_prime_matrix
         else:
-            print self.k_prime
-            print e
-            v_vec = mt.repmat(v, 1, self.grid_n).transpose()
-            util_v_vec = util + self.beta * v_vec
-            tv = np.array([util_v_vec.max(1)]).T
-            self.k_prime = self.k_vector[util_v_vec.argmax(1)]
-            e = np.max(np.abs(tv - v))  # criteria for tolerance
-            v = tv  # update value function
-            it = it + 1
+            new_value_matrix = np.zeros((self.grid_n, len(self.z_vector)))
+            for i in range(0, len(self.k_vector)):
+                for j in range(0, len(self.z_vector)):
+                    c_vector = self.z_vector[j] * self.k_vector[i] + (1-self.theta) * self.k_vector[i] \
+                               - self.k_vector
+                    c_vector[c_vector < 0] = 0.1
 
-            return self.iterate(e=e, it=it, v=v, k_prime=k_prime, c=c, util=util)
+                    value_vector = (np.power(c_vector, 1-self.lambda1)/(1-self.lambda1)) + \
+                        self.beta * expected_value(self.value_matrix, self.transition_matrix[j])
+
+                    new_value_matrix[i][j] = np.amax(np.array(value_vector))
+                    self.k_prime_matrix[i][j] = self.k_vector[np.argmax(np.array(value_vector))]
+            e = np.amax(np.abs(np.array(new_value_matrix) - np.array(self.value_matrix)))
+            self.value_matrix = new_value_matrix
+            return self.solve_2(e=e, n=n+1)
+
 
 if __name__ == '__main__':
-    # print(create_grid(value=3.96, n=100.0, deviation=.10))
-    print(transition_matrix([.8, .9, 1.1, 1.2]))
-    # new_object = ValueFunction(grid_n=2, lambda1=2, beta=.995, alpha=.36, theta=.1)
-    # print new_object.solve()
+
+    new_object = ValueFunction(z_vector=[.9, .95, 1.05, 1.1], grid_n=20, lambda1=2, beta=.995, alpha=1, theta=.95)
+    print new_object.solve_2()
