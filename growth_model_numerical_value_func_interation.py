@@ -2,13 +2,11 @@
 Jugal Marfatia, Tiana Randriamaro
 Numerical value function iteration
 '''
-import sys
 import numpy as np
 import pandas as pd
 from highcharts import Highchart
 import plotly.plotly as py
 import plotly.graph_objs as go
-sys.setrecursionlimit(100000000)
 
 
 def find_nearest(array, value):
@@ -22,7 +20,7 @@ def transition_matrix(vector=np.array([]), p=.5, simulations_n=100):
 
     for i in range(0, len(vector)):
         for j in range(0, simulations_n):
-            z_prime = p * np.log(vector[i]) + np.random.normal()
+            z_prime = p * np.log(vector[i]) + np.random.randn()
             z_id = find_nearest(vector, z_prime)
             result[i][z_id] += 1
 
@@ -57,13 +55,15 @@ class ValueFunction:
                 for j in range(0, len(self.z_vector)):
                     c_vector = self.z_vector[j] * self.k_vector[i] + (1-self.theta) * self.k_vector[i] \
                                - self.k_vector
-                    c_vector[c_vector <= 0] = .1
+                    c_vector[c_vector <= 0] = .1 # Since we cannot divide by 0 and consumption cannot be negative
 
                     value_vector = (np.power(c_vector, 1-self.lambda1)/(1-self.lambda1)) + \
                         self.beta * expected_value(self.value_matrix, self.transition_matrix[j])
 
-                    new_value_matrix[i][j] = np.amax(np.array(value_vector[0:i+1]))
-                    self.k_prime_matrix[i][j] = self.k_vector[np.argmax(np.array(value_vector[0:i+1]))]
+                    value_vector[c_vector == .1] = -999999 # We canot select k_prime which yield negative c
+
+                    new_value_matrix[i][j] = np.amax(np.array(value_vector))
+                    self.k_prime_matrix[i][j] = self.k_vector[np.argmax(np.array(value_vector))]
             e = np.amax(np.abs(np.array(new_value_matrix) - np.array(self.value_matrix)))
             self.value_matrix = new_value_matrix
             return self.solve(e=e, n=n+1)
@@ -102,10 +102,6 @@ class ValueFunction:
             h.add_data_set(df1, 'spline', 'z_' + str(x) + ' = ' + str(self.z_vector[x]), zIndex=1, marker={
                 'fillColor': 'white', 'lineWidth': 2, 'lineColor': 'Highcharts.getOptions().colors[1]'})
 
-        # line_45 = [[0, 0], [100, 100]]
-        #    H.add_data_set(line_45, 'spline', '45 degree line', zIndex=1, marker={
-        #        'fillColor': 'white', 'lineWidth': 2, 'lineColor': 'Highcharts.getOptions().colors[1]'})
-
         html_str = h.htmlcontent.encode('utf-8')
 
         html_file = open("chart.html", "w")
@@ -126,8 +122,8 @@ class ValueFunction:
         layout = go.Layout(
             title='Value Function Iteration',
             autosize=False,
-            width=800,
-            height=800,
+            width=700,
+            height=700,
             scene=dict(
                 zaxis=dict(
                     title='Value of capital'),
@@ -143,14 +139,14 @@ class ValueFunction:
             )
         )
         fig = go.Figure(data=data, layout=layout)
-        py.plot(fig, filename='elevations-3d-surface')
+        py.plot(fig, filename='3d-surface')
 
 if __name__ == '__main__':
 
-    new_object = ValueFunction(z_vector=np.linspace(0.8, 2, 20), grid_n=100, lambda1=2, beta=.995, alpha=1,
+    new_object = ValueFunction(z_vector=np.linspace(0.1, 2, 20), grid_n=100, lambda1=2, beta=.995, alpha=1,
                                theta=.95, rho=.5, transition_simulation=1000)
 
     print(new_object.solve())
     new_object.plot_2d()
     new_object.plot_3d()
-
+    print new_object.transition_matrix
