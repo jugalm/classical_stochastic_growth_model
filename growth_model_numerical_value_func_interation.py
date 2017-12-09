@@ -2,11 +2,13 @@
 Jugal Marfatia, Tiana Randriamaro
 Numerical value function iteration
 '''
+import sys
 import numpy as np
 import pandas as pd
 from highcharts import Highchart
 import plotly.plotly as py
 import plotly.graph_objs as go
+sys.setrecursionlimit(100000000)
 
 
 def find_nearest(array, value):
@@ -55,12 +57,14 @@ class ValueFunction:
                 for j in range(0, len(self.z_vector)):
                     c_vector = self.z_vector[j] * self.k_vector[i] + (1-self.theta) * self.k_vector[i] \
                                - self.k_vector
-                    c_vector[c_vector <= 0] = .1 # Since we cannot divide by 0 and consumption cannot be negative
+                    c_vector[c_vector == 0] = .1 # Since we cannot divide by 0
+
+                    c_vector[c_vector < 0] = .01 # Since we cannot divide by 0 and consumption cannot be negative
 
                     value_vector = (np.power(c_vector, 1-self.lambda1)/(1-self.lambda1)) + \
                         self.beta * expected_value(self.value_matrix, self.transition_matrix[j])
 
-                    value_vector[c_vector == .1] = -999999 # We canot select k_prime which yield negative c
+                    value_vector[c_vector == .01] = -999999 # We cannot select k_prime which yields negative c
 
                     new_value_matrix[i][j] = np.amax(np.array(value_vector))
                     self.k_prime_matrix[i][j] = self.k_vector[np.argmax(np.array(value_vector))]
@@ -108,11 +112,15 @@ class ValueFunction:
         html_file.write(html_str)
         html_file.close()
 
-    def plot_3d(self):
+    def plot_3d(self, data_name="Value"):
+        if data_name == "Policy":
+            z_data = self.k_prime_matrix
+        else:
+            z_data = self.value_matrix
 
         data = [
             go.Surface(
-                z=self.value_matrix,
+                z=z_data,
                 x=self.z_vector,
                 y=self.k_vector,
                 text='hover',
@@ -126,7 +134,7 @@ class ValueFunction:
             height=700,
             scene=dict(
                 zaxis=dict(
-                    title='Value of capital'),
+                    title=data_name),
                 yaxis=dict(
                     title='K- Level of Capital'),
                 xaxis=dict(
@@ -139,7 +147,7 @@ class ValueFunction:
             )
         )
         fig = go.Figure(data=data, layout=layout)
-        py.plot(fig, filename='3d-surface')
+        py.plot(fig, filename='3d-surface_' + data_name)
 
 if __name__ == '__main__':
 
@@ -148,5 +156,5 @@ if __name__ == '__main__':
 
     print(new_object.solve())
     new_object.plot_2d()
-    new_object.plot_3d()
-    print new_object.transition_matrix
+    new_object.plot_3d('Value')
+    new_object.plot_3d('Policy')
